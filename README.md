@@ -37,7 +37,7 @@
    - **Hugging Face** (example for “hiera-large”):  
      ```bash
      mkdir -p checkpoints
-     curl -L -o checkpoints/sam2.1_hiera_large.pt        https://huggingface.co/facebook/sam2-hiera-large/resolve/main/checkpoints/sam2.1_hiera_large.pt
+     curl -L -o checkpoints/sam2.1_hiera_large.pt        https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
      ```  
    Ensure the downloaded file lives at:
    ```

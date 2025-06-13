@@ -22,6 +22,19 @@ def main():
         default=".",
         help="Path to output segmentation directory"
     )
+    parser.add_argument(
+        "--index",
+        type=int,
+        default=None,
+        help="Index of starting slice"
+    )
+    parser.add_argument(
+        "--window",
+        type=int,
+        nargs=2,
+        default=(1, 99),
+        help="Percentile range for histogram adjustment as two integers (0,100)"
+    )
     args = parser.parse_args()
 
     # ========= CONFIGURATION =========
@@ -30,6 +43,8 @@ def main():
     mask_output_dir = seg_dir / "masks"
     video_forward_path = seg_dir / "video_forward.mp4"
     video_backward_path = seg_dir / "video_backward.mp4"
+    index = args.index
+    window = tuple(args.window)
 
     # ─── Determine project root (two levels up from this file)
     project_root = Path(__file__).parents[2].resolve()
@@ -76,8 +91,11 @@ def main():
 
     stack_np = np.stack(stack_filtered, axis=0)
 
-    vmin = np.percentile(stack_np, 1)
-    vmax = np.percentile(stack_np, 99)
+    if not (0 <= window[0] < window[1] <= 100):
+        parser.error(f"Invalid --window range: {window}. Must satisfy 0 <= low < high <= 100.")
+
+    vmin = np.percentile(stack_np, window[0])
+    vmax = np.percentile(stack_np, window[1])
     stack_normalized = np.clip(
         (stack_np - vmin) / (vmax - vmin) * 255, 0, 255
     ).astype(np.uint8)
@@ -86,7 +104,12 @@ def main():
     stack_normalized = median_filter(stack_normalized, size=(3, 3, 3))
 
     height, width = stack_normalized.shape[1:]
-    middle_idx = len(stack_normalized) // 2
+
+    # Define starting point 
+    if index == None: 
+        start_idx = len(stack_normalized) // 2
+    else:   
+        start_idx = index
 
     # ========== WRITE VIDEOS ==========
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -96,7 +119,7 @@ def main():
     writer = cv2.VideoWriter(
         str(video_forward_path), fourcc, fps, (width, height), isColor=True
     )
-    for frame in stack_normalized[middle_idx:]:
+    for frame in stack_normalized[start_idx:]:
         writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR))
     writer.release()
 
@@ -104,7 +127,7 @@ def main():
     writer = cv2.VideoWriter(
         str(video_backward_path), fourcc, fps, (width, height), isColor=True
     )
-    for frame in stack_normalized[middle_idx - 1 :: -1]:
+    for frame in stack_normalized[start_idx - 1 :: -1]:
         writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR))
     writer.release()
 
@@ -124,7 +147,7 @@ def main():
     # ========== MIDDLE SLICE SELECTION ==========
     print("Segmenting middle frame...")
     frame_bgr = cv2.cvtColor(
-        stack_normalized[middle_idx], cv2.COLOR_GRAY2BGR
+        stack_normalized[start_idx], cv2.COLOR_GRAY2BGR
     )
     roi = cv2.selectROI(
         "Select ROI on middle slice", frame_bgr,
@@ -183,11 +206,11 @@ def main():
 
     mask_stack = [None] * len(stack_normalized)
     for i, mask in enumerate(forward_masks):
-        idx = middle_idx + i
+        idx = start_idx + i
         if 0 <= idx < len(mask_stack):
             mask_stack[idx] = mask
     for i, mask in enumerate(backward_masks):
-        idx = middle_idx - 1 - i
+        idx = start_idx - 1 - i
         if 0 <= idx < len(mask_stack):
             mask_stack[idx] = mask
 
