@@ -76,11 +76,11 @@ def main():
 
     stack_np = np.stack(stack_filtered, axis=0)
 
-    vmin = np.percentile(stack_np, 1)
-    vmax = np.percentile(stack_np, 99)
+    vmin = np.float32(np.percentile(stack_np, 1))
+    vmax = np.float32(np.percentile(stack_np, 99))
     stack_normalized = np.clip(
-        (stack_np - vmin) / (vmax - vmin) * 255, 0, 255
-    ).astype(np.uint8)
+        (stack_np.astype(np.float32) - vmin) / (vmax - vmin) * 255, 0, 255
+        ).astype(np.uint8)
 
     print("Applying 3D median filter...")
     stack_normalized = median_filter(stack_normalized, size=(3, 3, 3))
