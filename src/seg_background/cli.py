@@ -56,7 +56,6 @@ def main():
     seg_dir = Path(args.output) / "segmentation_SAM2"
     mask_output_dir = seg_dir / "masks"
     video_forward_path = seg_dir / "video_forward.mp4"
-    video_backward_path = seg_dir / "video_backward.mp4"
     index = args.index
     window = tuple(args.window)
 
@@ -159,12 +158,8 @@ def main():
 
     # ========= COMBINE MASKS ==========
     print("Combining and filling mask stack...")
-    mask_stack = [None] * len(stack_normalized)
-    for i, mask in enumerate(forward_masks):
-        mask_stack[i] = mask
-    mask_stack = [m if m is not None else np.zeros((height, width), dtype=np.uint8) for m in mask_stack]
 
-    mask_stack_3d = np.stack(mask_stack, axis=0)
+    mask_stack_3d = np.stack(forward_masks, axis=0)
     if args.fill_holes:
         print("Filling internal holes in 2D mask slices...")
         mask_stack_3d = fill_2d_holes(mask_stack_3d)
