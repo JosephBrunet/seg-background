@@ -131,23 +131,17 @@ def main():
 
     print("Writing forward video...")
     writer = cv2.VideoWriter(str(video_forward_path), fourcc, fps, (width, height), isColor=True)
-    for frame in stack_normalized[start_idx:]:
-        writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR))
-    writer.release()
-
-    print("Writing backward video...")
-    writer = cv2.VideoWriter(str(video_backward_path), fourcc, fps, (width, height), isColor=True)
-    for frame in stack_normalized[start_idx - 1 :: -1]:
-        writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR))
+    for frame in stack_normalized:
+        writer.write(cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB))
     writer.release()
 
     # ========= LOAD SAM2 ==========
     print(f"Loading SAM2 model from:\n  checkpoint: {checkpoint_path}\n  config:     {config_rel_path}")
     predictor = build_sam2_video_predictor(str(config_rel_path), str(checkpoint_path))
 
-    print("Segmenting middle frame...")
-    frame_bgr = cv2.cvtColor(stack_normalized[start_idx], cv2.COLOR_GRAY2BGR)
-    roi = cv2.selectROI("Select ROI on middle slice", frame_bgr, fromCenter=False, showCrosshair=True)
+    print(f"Segmenting frame #{start_idx}...")
+    frame_rgb = cv2.cvtColor(stack_normalized[start_idx], cv2.COLOR_GRAY2RGB)
+    roi = cv2.selectROI("Select ROI on middle slice", frame_rgb, fromCenter=False, showCrosshair=True)
     cv2.destroyAllWindows()
     x, y, w, h = roi
     box = [x, y, x + w, y + h]
@@ -155,7 +149,7 @@ def main():
     # ========= FORWARD PROPAGATION ==========
     print("Propagating forward...")
     state = predictor.init_state(str(video_forward_path))
-    _, obj_ids, _ = predictor.add_new_points_or_box(state, frame_idx=0, box=np.array(box), obj_id=1)
+    _, obj_ids, _ = predictor.add_new_points_or_box(state, frame_idx=start_idx, box=np.array(box), obj_id=1)
 
     forward_masks = []
     for _, _, mask_logits in tqdm(predictor.propagate_in_video(state), desc="Forward Propagation"):
@@ -163,28 +157,11 @@ def main():
             mask_np = (mask_tensor > 0).cpu().numpy().astype(np.uint8)
             forward_masks.append(np.squeeze(mask_np))
 
-    # ========= BACKWARD PROPAGATION ==========
-    print("Propagating backward...")
-    state = predictor.init_state(str(video_backward_path))
-    _, obj_ids, _ = predictor.add_new_points_or_box(state, frame_idx=0, box=np.array(box), obj_id=1)
-
-    backward_masks = []
-    for _, _, mask_logits in tqdm(predictor.propagate_in_video(state), desc="Backward Propagation"):
-        for mask_tensor in mask_logits:
-            mask_np = (mask_tensor > 0).cpu().numpy().astype(np.uint8)
-            backward_masks.append(np.squeeze(mask_np))
-
     # ========= COMBINE MASKS ==========
     print("Combining and filling mask stack...")
     mask_stack = [None] * len(stack_normalized)
     for i, mask in enumerate(forward_masks):
-        idx = start_idx + i
-        if 0 <= idx < len(mask_stack):
-            mask_stack[idx] = mask
-    for i, mask in enumerate(backward_masks):
-        idx = start_idx - 1 - i
-        if 0 <= idx < len(mask_stack):
-            mask_stack[idx] = mask
+        mask_stack[i] = mask
     mask_stack = [m if m is not None else np.zeros((height, width), dtype=np.uint8) for m in mask_stack]
 
     mask_stack_3d = np.stack(mask_stack, axis=0)
