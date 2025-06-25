@@ -151,7 +151,7 @@ def main():
     _, obj_ids, _ = predictor.add_new_points_or_box(state, frame_idx=start_idx, box=np.array(box), obj_id=1)
 
     forward_masks = []
-    for _, _, mask_logits in tqdm(predictor.propagate_in_video(state), desc="Forward Propagation"):
+    for _, _, mask_logits in tqdm(predictor.propagate_in_video(state, start_frame_idx=0), desc="Forward Propagation"):
         for mask_tensor in mask_logits:
             mask_np = (mask_tensor > 0).cpu().numpy().astype(np.uint8)
             forward_masks.append(np.squeeze(mask_np))
