@@ -37,6 +37,7 @@ keywords = [
     "medical imaging",
     "background removal",
     "dask",
+    "screeninfo",
 ]
 
 [tool.setuptools]
